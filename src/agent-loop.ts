@@ -37,6 +37,7 @@ export async function runAgentLoop(
   const systemPrompt = buildAgentSystemPrompt(
     tools,
     config.modelParameterSize,
+    config.systemPrompt,
   );
 
   // Initialize message history
@@ -158,10 +159,13 @@ export async function runAgentLoop(
         parseRetries = 0; // reset on successful parse
         const { call } = parseResult;
 
+        // Truncate hallucinated continuations after the tool call JSON
+        const cleanedResponse = truncateAfterToolCall(response, call.rawMatch);
+
         // Duplicate detection
         const callKey = JSON.stringify({ name: call.name, args: call.arguments });
         if (callKey === lastToolCallKey) {
-          messages.push({ role: "assistant", content: response });
+          messages.push({ role: "assistant", content: cleanedResponse });
           messages.push({
             role: "user",
             content:
@@ -178,7 +182,7 @@ export async function runAgentLoop(
         try {
           validatedArgs = tools.validateArgs(call.name, call.arguments);
         } catch (err) {
-          messages.push({ role: "assistant", content: response });
+          messages.push({ role: "assistant", content: cleanedResponse });
           messages.push({
             role: "user",
             content: `[Tool Result: ${call.name}]\nERROR: ${err instanceof Error ? err.message : String(err)}`,
@@ -209,7 +213,7 @@ export async function runAgentLoop(
         });
 
         // Append to conversation
-        messages.push({ role: "assistant", content: response });
+        messages.push({ role: "assistant", content: cleanedResponse });
         messages.push({
           role: "user",
           content: `[Tool Result: ${call.name}]\n${toolResult}`,
@@ -234,6 +238,17 @@ export async function runAgentLoop(
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Truncate model output to include only content up to and including
+ * the first tool call match. Discards hallucinated continuations
+ * that SLMs often generate after a valid tool call.
+ */
+function truncateAfterToolCall(rawOutput: string, rawMatch: string): string {
+  const idx = rawOutput.indexOf(rawMatch);
+  if (idx === -1) return rawOutput;
+  return rawOutput.slice(0, idx + rawMatch.length).trimEnd();
+}
 
 /**
  * Call the LLM provider, collect the full streamed response, and

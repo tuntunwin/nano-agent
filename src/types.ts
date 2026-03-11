@@ -133,6 +133,8 @@ export interface AgentLoopConfig {
   maxParseRetries?: number;
   /** Model size in billions, for prompt tuning. */
   modelParameterSize?: number;
+  /** Custom system prompt (e.g. few-shot examples for SLMs). Appended after the agent's internal instructions. */
+  systemPrompt?: string;
   /** Context management configuration. */
   contextConfig?: Partial<ContextConfig>;
   /** Called on each state transition. */

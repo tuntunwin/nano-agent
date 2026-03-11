@@ -156,4 +156,38 @@ I need to check the weather for Berlin.
       expect(result.call.arguments).toEqual({ city: "Berlin", units: "celsius" });
     }
   });
+
+  // ── Hallucinated continuations (SLM behavior) ─────────────────────
+
+  it("extracts only first tool call when model hallucinates continuation", () => {
+    const output = `{"name": "calculate", "arguments": {"expression": "27 * 30"}}
+
+[Tool Result: calculate]
+810
+{"name": "calculate", "arguments": {"expression": "810 / 23"}}
+
+[Tool Result: calculate]
+35.2
+
+The answer is 35.2.`;
+    const result = parseModelOutput(output, registry);
+    expect(result.kind).toBe("tool_call");
+    if (result.kind === "tool_call") {
+      expect(result.call.name).toBe("calculate");
+      expect(result.call.arguments).toEqual({ expression: "27 * 30" });
+      // rawMatch should contain only the first JSON, not the hallucinated rest
+      expect(result.call.rawMatch).toBe('{"name": "calculate", "arguments": {"expression": "27 * 30"}}');
+    }
+  });
+
+  it("extracts first tool call when followed by extra JSON objects", () => {
+    const output = `{"name": "get_weather", "arguments": {"city": "Tokyo"}}
+{"name": "calculate", "arguments": {"expression": "2+2"}}`;
+    const result = parseModelOutput(output, registry);
+    expect(result.kind).toBe("tool_call");
+    if (result.kind === "tool_call") {
+      expect(result.call.name).toBe("get_weather");
+      expect(result.call.rawMatch).toBe('{"name": "get_weather", "arguments": {"city": "Tokyo"}}');
+    }
+  });
 });

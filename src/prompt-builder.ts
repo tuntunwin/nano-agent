@@ -7,6 +7,7 @@ import type { ToolRegistry } from "./tool-registry.js";
 export function buildAgentSystemPrompt(
   tools: ToolRegistry,
   modelParameterSize?: number,
+  systemPrompt?: string,
 ): string {
   const sections: string[] = [];
 
@@ -14,7 +15,8 @@ export function buildAgentSystemPrompt(
   sections.push(
     "You are a helpful assistant with access to tools. " +
       "Answer the user directly when you can. Use a tool only when needed to answer the question. " +
-      "After receiving a tool result, give a short plain-language answer.",
+      "Use multiple rounds of tool calls if needed." +
+      "After receiving a FINAL result, give a short plain-language answer.",
   );
 
   // Section 2: Tool catalog
@@ -28,6 +30,11 @@ export function buildAgentSystemPrompt(
   // Section 4: Model-size guardrails
   if (modelParameterSize !== undefined && modelParameterSize <= 1) {
     sections.push(SMALL_MODEL_ADDENDUM);
+  }
+
+  // Section 5: Custom system prompt (few-shot examples, use-case instructions)
+  if (systemPrompt) {
+    sections.push(systemPrompt);
   }
 
   return sections.join("\n\n");
@@ -56,6 +63,7 @@ function buildFormatInstructions(tools: ToolRegistry): string {
 
 Rules:
 - Output ONLY the JSON object when calling a tool, nothing else.
+- STOP immediately after the JSON object. Do not continue writing.
 - Use exactly one tool call per response.
 - Use the exact tool names listed above.
 - When you have enough information to answer, respond with plain text (no JSON).`;
@@ -64,5 +72,6 @@ Rules:
 const SMALL_MODEL_ADDENDUM = `Important — you are a small model:
 - You MUST use the exact tool names listed above. Do NOT invent tool names.
 - If unsure which tool to use, answer directly without a tool.
+- Output ONLY the JSON tool call, then STOP. Do not write anything after it.
 - Keep your answer under 3 sentences.
 - Do NOT repeat previous answers.`;
